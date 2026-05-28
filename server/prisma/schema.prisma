@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  SENIOR
+  ADMIN
+}
+
+enum Status {
+  ACTIVE
+  PENDING
+}
+
+enum Category {
+  NOTES
+  PYQS
+  LAB_MANUALS
+  ASSIGNMENTS
+  REFERENCE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(STUDENT)
+  status    Status   @default(ACTIVE)
+  year      Int?
+  createdAt DateTime @default(now())
+
+  collegeId String?
+  college   College? @relation(fields: [collegeId], references: [id], onDelete: SetNull)
+
+  resources Resource[]
+
+  @@map("users")
+}
+
+model College {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  departments Department[]
+  users       User[]
+  resources   Resource[]
+
+  @@map("colleges")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  code      String
+  createdAt DateTime @default(now())
+
+  collegeId String
+  college   College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+
+  semesters Semester[]
+  subjects  Subject[]
+  resources Resource[]
+
+  @@unique([name, collegeId])
+  @@unique([code, collegeId])
+  @@map("departments")
+}
+
+model Semester {
+  id        String   @id @default(uuid())
+  number    Int
+  createdAt DateTime @default(now())
+
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  subjects  Subject[]
+  resources Resource[]
+
+  @@unique([number, departmentId])
+  @@map("semesters")
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String
+  code      String
+  createdAt DateTime @default(now())
+
+  semesterId   String
+  semester     Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  resources Resource[]
+
+  @@map("subjects")
+}
+
+model Resource {
+  id        String   @id @default(uuid())
+  name      String
+  mimeType  String
+  size      Int
+  diskPath  String
+  category  Category
+  createdAt DateTime @default(now())
+
+  subjectId    String
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  semesterId   String
+  semester     Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  collegeId    String
+  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@map("resources")
+}
