@@ -47,9 +47,9 @@ These endpoints handle the structural hierarchy of the institution. Fetching (`G
 
 These endpoints handle the actual uploaded files.
 
-- **POST `/`** (Senior / Admin)
+- **POST `/upload`** (Senior / Admin)
   - Upload a new file. Requires `multipart/form-data`.
-  - Body requires: `file`, `subjectId`, `semesterId`, `departmentId`, `collegeId`.
+  - Body requires: `files` (array), `subjectIds` (JSON array or comma-separated string of Subject IDs), and `category`.
 - **GET `/`** (Protected)
   - Fetch resources for a specific subject. Supports query parameters for sorting (`sort`, `order`) and filtering (`category`).
 - **GET `/search?q=...`** (Protected)

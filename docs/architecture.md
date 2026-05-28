@@ -58,7 +58,7 @@ The application uses a highly relational PostgreSQL schema to represent the stru
 3. **Department**: Belongs to a College.
 4. **Semester**: Belongs to a Department.
 5. **Subject**: Belongs to a Semester and Department.
-6. **Resource**: The uploaded files. Resources retain foreign keys to *all* parent hierarchical entities (Subject, Semester, Department, College, User) to allow for efficient querying and cascading deletes.
+6. **Resource**: The uploaded files. Resources retain foreign keys to parent hierarchical entities (Semester, Department, College, User) and have a **many-to-many relationship with Subjects**. This allows a single uploaded file to be tagged to multiple subjects simultaneously, avoiding duplication.
 
 > **Note on Cascading Deletes**: If a higher-level entity (e.g., a Department) is deleted, all its nested Semesters, Subjects, and uploaded Resources are automatically deleted via Prisma's `onDelete: Cascade` rules.
 

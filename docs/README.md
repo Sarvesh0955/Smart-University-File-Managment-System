@@ -4,7 +4,7 @@ A comprehensive platform designed for academic institutions to manage, share, an
 
 ## Overview
 
-The Academic Resource Hub (formerly known as "AI Document Manager") is a full-stack web application built with a modern technology stack. It provides a Google Drive-like interface for navigating and managing academic resources such as notes, previous year question papers (PYQs), lab manuals, assignments, and reference materials.
+The Academic Resource Hub (formerly known as "AI Document Manager") is a full-stack web application built with a modern technology stack. It provides a Google Drive-like interface for navigating and managing academic resources such as Notes, Books, PYQs (Previous Year Question Papers), Assignments, Lab manuals, and Miscellaneous reference materials.
 
 ## Features
 
