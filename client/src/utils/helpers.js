@@ -83,10 +83,11 @@ export function getPreviewType(mimeType) {
  */
 export const CATEGORIES = [
   { value: "NOTES", label: "Notes" },
-  { value: "PYQS", label: "PYQs" },
-  { value: "LAB_MANUALS", label: "Lab Manuals" },
-  { value: "ASSIGNMENTS", label: "Assignments" },
-  { value: "REFERENCE", label: "Reference" },
+  { value: "BOOK", label: "Book" },
+  { value: "PYQ", label: "PYQ" },
+  { value: "ASSIGNMENT", label: "Assignment" },
+  { value: "LAB", label: "Lab" },
+  { value: "MISC", label: "Misc" },
 ];
 
 /**

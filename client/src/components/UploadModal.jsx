@@ -1,14 +1,32 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import api from "../utils/api";
 import { formatBytes, CATEGORIES } from "../utils/helpers";
 
-export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
+export default function UploadModal({ semesterId, initialSubjectId, onClose, onUploadComplete }) {
   const [files, setFiles] = useState([]);
   const [category, setCategory] = useState("NOTES");
+  
+  // Subject Selection
+  const [subjects, setSubjects] = useState([]);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState(
+    initialSubjectId ? [initialSubjectId] : []
+  );
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Fetch subjects for this semester to allow multi-select
+    if (semesterId) {
+      api.get(`/subjects?semesterId=${semesterId}`).then(res => {
+        setSubjects(res.data.subjects || []);
+      }).catch(err => {
+        console.error("Failed to fetch subjects:", err);
+      });
+    }
+  }, [semesterId]);
 
   const onDrop = useCallback((acceptedFiles) => {
     setFiles((prev) => [...prev, ...acceptedFiles]);
@@ -23,10 +41,16 @@ export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const toggleSubject = (id) => {
+    setSelectedSubjectIds(prev => 
+      prev.includes(id) ? prev.filter(sId => sId !== id) : [...prev, id]
+    );
+  };
+
   const handleUpload = async () => {
     if (files.length === 0) return;
-    if (!subjectId) {
-      setError("Please select a subject first");
+    if (selectedSubjectIds.length === 0) {
+      setError("Please select at least one subject");
       return;
     }
 
@@ -35,7 +59,7 @@ export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
-    formData.append("subjectId", subjectId);
+    formData.append("subjectIds", JSON.stringify(selectedSubjectIds));
     formData.append("category", category);
 
     try {
@@ -71,24 +95,59 @@ export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label">Category</label>
-            <select
-              className="form-select"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat.value} value={cat.value}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div className="form-group">
+              <label className="form-label">Category</label>
+              <select
+                className="form-select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Subjects (Select Multiple)</label>
+              <div 
+                style={{ 
+                  maxHeight: 120, 
+                  overflowY: "auto", 
+                  border: "1px solid var(--border-color)", 
+                  borderRadius: 8, 
+                  padding: 8,
+                  background: "var(--bg-card)"
+                }}
+              >
+                {subjects.length === 0 ? (
+                  <div style={{ fontSize: 13, color: "var(--color-on-surface-variant)", padding: 8 }}>
+                    Loading subjects...
+                  </div>
+                ) : (
+                  subjects.map(sub => (
+                    <label key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedSubjectIds.includes(sub.id)}
+                        onChange={() => toggleSubject(sub.id)}
+                        style={{ accentColor: "var(--color-primary)" }}
+                      />
+                      <span style={{ fontSize: 14 }}>{sub.name} ({sub.code})</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
 
           <div
             {...getRootProps()}
             className={`dropzone ${isDragActive ? "active" : ""}`}
+            style={{ marginTop: 16 }}
           >
             <input {...getInputProps()} />
             <span className="material-symbols-outlined dropzone-icon">
@@ -103,7 +162,7 @@ export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
           </div>
 
           {files.length > 0 && (
-            <div className="upload-file-list">
+            <div className="upload-file-list" style={{ marginTop: 16 }}>
               {files.map((file, index) => (
                 <div key={index} className="upload-file-item">
                   <span
@@ -146,7 +205,7 @@ export default function UploadModal({ subjectId, onClose, onUploadComplete }) {
           <button
             className="btn btn-primary"
             onClick={handleUpload}
-            disabled={uploading || files.length === 0}
+            disabled={uploading || files.length === 0 || selectedSubjectIds.length === 0}
           >
             <span className="material-symbols-outlined">cloud_upload</span>
             {uploading ? `Uploading ${progress}%` : `Upload ${files.length} file(s)`}

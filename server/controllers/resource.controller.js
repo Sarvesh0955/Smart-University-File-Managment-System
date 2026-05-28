@@ -6,37 +6,50 @@ const prisma = new PrismaClient();
 
 /**
  * POST /api/resources/upload
- * Multi-file upload. Requires subjectId, category in body.
+ * Multi-file upload. Requires subjectIds, category in body.
  */
 const upload = async (req, res, next) => {
   try {
-    const { subjectId, category } = req.body;
+    let { subjectIds, category } = req.body;
     const files = req.files;
 
     if (!files || files.length === 0) {
       return res.status(400).json({ error: "No files provided" });
     }
-    if (!subjectId || !category) {
+    if (!subjectIds || !category) {
       return res
         .status(400)
-        .json({ error: "subjectId and category are required" });
+        .json({ error: "subjectIds and category are required" });
+    }
+
+    if (typeof subjectIds === 'string') {
+      try {
+        subjectIds = JSON.parse(subjectIds);
+      } catch (e) {
+        subjectIds = subjectIds.split(',').map(s => s.trim());
+      }
+    }
+    
+    if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+      return res.status(400).json({ error: "subjectIds must be a non-empty array" });
     }
 
     // Validate category
     const validCategories = [
       "NOTES",
-      "PYQS",
-      "LAB_MANUALS",
-      "ASSIGNMENTS",
-      "REFERENCE",
+      "BOOK",
+      "PYQ",
+      "ASSIGNMENT",
+      "LAB",
+      "MISC",
     ];
     if (!validCategories.includes(category.toUpperCase())) {
       return res.status(400).json({ error: "Invalid category" });
     }
 
-    // Lookup subject to get semester, department, college references
+    // Lookup first subject to get semester, department, college references
     const subject = await prisma.subject.findUnique({
-      where: { id: subjectId },
+      where: { id: subjectIds[0] },
       include: {
         semester: true,
         department: { include: { college: true } },
@@ -57,14 +70,17 @@ const upload = async (req, res, next) => {
           size: file.size,
           diskPath: file.filename,
           category: category.toUpperCase(),
-          subjectId: subject.id,
           semesterId: subject.semesterId,
           departmentId: subject.departmentId,
           collegeId: subject.department.collegeId,
           uploadedById: req.user.id,
+          subjects: {
+            connect: subjectIds.map(id => ({ id }))
+          }
         },
         include: {
           uploadedBy: { select: { id: true, name: true } },
+          subjects: { select: { name: true, code: true } },
         },
       });
       resources.push(resource);
@@ -89,7 +105,9 @@ const list = async (req, res, next) => {
     const { subjectId, category, sort = "createdAt", order = "desc" } = req.query;
 
     const where = {};
-    if (subjectId) where.subjectId = subjectId;
+    if (subjectId) {
+      where.subjects = { some: { id: subjectId } };
+    }
     if (category) where.category = category.toUpperCase();
 
     // Validate sort field
@@ -102,7 +120,7 @@ const list = async (req, res, next) => {
       orderBy: { [sortField]: sortOrder },
       include: {
         uploadedBy: { select: { id: true, name: true } },
-        subject: { select: { name: true, code: true } },
+        subjects: { select: { name: true, code: true } },
         semester: { select: { number: true } },
         department: { select: { name: true, code: true } },
         college: { select: { name: true } },
@@ -134,7 +152,7 @@ const search = async (req, res, next) => {
       take: 50,
       include: {
         uploadedBy: { select: { id: true, name: true } },
-        subject: { select: { name: true, code: true } },
+        subjects: { select: { name: true, code: true } },
         semester: { select: { number: true } },
         department: { select: { name: true, code: true } },
         college: { select: { name: true } },
@@ -157,7 +175,7 @@ const getOne = async (req, res, next) => {
       where: { id: req.params.id },
       include: {
         uploadedBy: { select: { id: true, name: true } },
-        subject: { select: { name: true, code: true } },
+        subjects: { select: { name: true, code: true } },
         semester: { select: { number: true } },
         department: { select: { name: true, code: true } },
         college: { select: { name: true } },
@@ -241,11 +259,11 @@ const rename = async (req, res, next) => {
  */
 const move = async (req, res, next) => {
   try {
-    const { subjectId, category } = req.body;
-    if (!subjectId && !category) {
+    let { subjectIds, category } = req.body;
+    if (!subjectIds && !category) {
       return res
         .status(400)
-        .json({ error: "Provide subjectId and/or category to move to" });
+        .json({ error: "Provide subjectIds and/or category to move to" });
     }
 
     const resource = await prisma.resource.findUnique({
@@ -267,10 +285,14 @@ const move = async (req, res, next) => {
       updateData.category = category.toUpperCase();
     }
 
-    if (subjectId) {
+    if (subjectIds) {
+      if (typeof subjectIds === 'string') {
+        try { subjectIds = JSON.parse(subjectIds); }
+        catch (e) { subjectIds = subjectIds.split(',').map(s => s.trim()); }
+      }
       // Lookup the target subject to get its parent references
       const subject = await prisma.subject.findUnique({
-        where: { id: subjectId },
+        where: { id: subjectIds[0] },
         include: { department: true },
       });
 
@@ -278,17 +300,20 @@ const move = async (req, res, next) => {
         return res.status(404).json({ error: "Target subject not found" });
       }
 
-      updateData.subjectId = subject.id;
       updateData.semesterId = subject.semesterId;
       updateData.departmentId = subject.departmentId;
       updateData.collegeId = subject.department.collegeId;
+      
+      updateData.subjects = {
+        set: subjectIds.map(id => ({ id }))
+      };
     }
 
     const updated = await prisma.resource.update({
       where: { id: req.params.id },
       data: updateData,
       include: {
-        subject: { select: { name: true } },
+        subjects: { select: { name: true } },
       },
     });
 

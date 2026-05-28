@@ -23,10 +23,11 @@ enum Status {
 
 enum Category {
   NOTES
-  PYQS
-  LAB_MANUALS
-  ASSIGNMENTS
-  REFERENCE
+  BOOK
+  PYQ
+  ASSIGNMENT
+  LAB
+  MISC
 }
 
 model User {
@@ -118,8 +119,7 @@ model Resource {
   category  Category
   createdAt DateTime @default(now())
 
-  subjectId    String
-  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjects     Subject[]
   semesterId   String
   semester     Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   departmentId String

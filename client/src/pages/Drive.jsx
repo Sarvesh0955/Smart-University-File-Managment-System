@@ -559,7 +559,8 @@ export default function Drive() {
       {/* Upload Modal */}
       {showUpload && (
         <UploadModal
-          subjectId={currentId}
+          semesterId={path[path.length - 2]?.id}
+          initialSubjectId={currentId}
           onClose={() => setShowUpload(false)}
           onUploadComplete={fetchData}
         />
