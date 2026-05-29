@@ -16,6 +16,8 @@
 - **Database**: PostgreSQL (hosted/local)
 - **Authentication**: JSON Web Tokens (JWT) & bcryptjs for password hashing
 - **File Uploads**: Multer (configured for local disk storage with 100MB limits)
+- **Background Jobs**: BullMQ and Redis for asynchronous task processing
+- **AI Integration**: Google Gemini API (Multimodal) with Groq (Llama-3) fallback
 
 ---
 
@@ -61,6 +63,15 @@ The application uses a highly relational PostgreSQL schema to represent the stru
 6. **Resource**: The uploaded files. Resources retain foreign keys to parent hierarchical entities (Semester, Department, College, User) and have a **many-to-many relationship with Subjects**. This allows a single uploaded file to be tagged to multiple subjects simultaneously, avoiding duplication.
 
 > **Note on Cascading Deletes**: If a higher-level entity (e.g., a Department) is deleted, all its nested Semesters, Subjects, and uploaded Resources are automatically deleted via Prisma's `onDelete: Cascade` rules.
+
+---
+
+## Background Services (Auto-Sort)
+
+The Auto-Sort feature uses a dedicated background worker to process large files without blocking the main Express API:
+- **Queue System**: BullMQ powered by Redis handles job retries, concurrency limits (to respect LLM API limits), and state management.
+- **Multimodal Parser**: Extracts raw text from PDFs (`pdf-parse`) and Office documents (`officeparser`). If a PDF is scanned (low text count), it generates images of the pages (`pdf2pic`) to feed into the multimodal LLM.
+- **Classification Engine**: Prompts the LLM with the extracted content and the database's available subjects. It resolves the document to an array of Subject IDs and assigns an AI Confidence score.
 
 ---
 

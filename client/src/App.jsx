@@ -7,6 +7,7 @@ import PendingApproval from "./pages/PendingApproval";
 import Drive from "./pages/Drive";
 import AdminPanel from "./pages/AdminPanel";
 import Profile from "./pages/Profile";
+import AutoSort from "./pages/AutoSort";
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -79,6 +80,7 @@ function AppRoutes() {
         }
       >
         <Route path="/drive" element={<Drive />} />
+        <Route path="/auto-sort" element={<AutoSort />} />
         <Route path="/profile" element={<Profile />} />
         <Route
           path="/admin"

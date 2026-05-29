@@ -30,6 +30,12 @@ enum Category {
   MISC
 }
 
+enum ClassStatus {
+  CLASSIFIED
+  PENDING
+  NEEDS_REVIEW
+}
+
 model User {
   id        String   @id @default(uuid())
   name      String
@@ -111,23 +117,25 @@ model Subject {
 }
 
 model Resource {
-  id        String   @id @default(uuid())
-  name      String
-  mimeType  String
-  size      Int
-  diskPath  String
-  category  Category
-  createdAt DateTime @default(now())
+  id           String       @id @default(uuid())
+  name         String
+  mimeType     String
+  size         Int
+  diskPath     String
+  category     Category?
+  classStatus  ClassStatus  @default(CLASSIFIED)
+  aiConfidence Int?
+  createdAt    DateTime     @default(now())
 
   subjects     Subject[]
-  semesterId   String
-  semester     Semester   @relation(fields: [semesterId], references: [id], onDelete: Cascade)
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  collegeId    String
-  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  semesterId   String?
+  semester     Semester?    @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  collegeId    String?
+  college      College?     @relation(fields: [collegeId], references: [id], onDelete: SetNull)
   uploadedById String
-  uploadedBy   User       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 
   @@map("resources")
 }

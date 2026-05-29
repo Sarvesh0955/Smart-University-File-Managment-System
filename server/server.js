@@ -44,4 +44,14 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+  // Start the background classification worker
+  try {
+    const { startWorker } = require("./services/queue.service");
+    startWorker();
+    console.log("🤖 AI classification worker initialized");
+  } catch (err) {
+    console.warn("⚠️  Could not start classification worker (Redis may not be running):", err.message);
+  }
 });
+

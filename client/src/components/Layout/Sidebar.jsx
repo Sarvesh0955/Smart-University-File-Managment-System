@@ -26,6 +26,17 @@ export default function Sidebar() {
           <span className="material-symbols-outlined">library_books</span>
           My Drive
         </NavLink>
+        {(user?.role === "SENIOR" || user?.role === "ADMIN") && (
+          <NavLink
+            to="/auto-sort"
+            className={({ isActive }) =>
+              `sidebar-nav-item ${isActive ? "active" : ""}`
+            }
+          >
+            <span className="material-symbols-outlined">auto_awesome</span>
+            Auto-Sort
+          </NavLink>
+        )}
         {user?.role === "ADMIN" && (
           <NavLink
             to="/admin"

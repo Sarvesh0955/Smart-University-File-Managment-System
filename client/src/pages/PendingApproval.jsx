@@ -1,7 +1,14 @@
 import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function PendingApproval() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <div className="pending-page">
@@ -13,7 +20,7 @@ export default function PendingApproval() {
       </p>
       <button
         className="btn btn-secondary"
-        onClick={logout}
+        onClick={handleLogout}
         style={{ marginTop: 24 }}
       >
         Sign Out

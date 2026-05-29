@@ -1,6 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const path = require("path");
 const fs = require("fs");
+const { addToQueue, getQueueStats } = require("../services/queue.service");
 
 const prisma = new PrismaClient();
 
@@ -35,14 +36,7 @@ const upload = async (req, res, next) => {
     }
 
     // Validate category
-    const validCategories = [
-      "NOTES",
-      "BOOK",
-      "PYQ",
-      "ASSIGNMENT",
-      "LAB",
-      "MISC",
-    ];
+    const validCategories = ["NOTES", "BOOK", "PYQ", "ASSIGNMENT", "LAB", "MISC"];
     if (!validCategories.includes(category.toUpperCase())) {
       return res.status(400).json({ error: "Invalid category" });
     }
@@ -70,6 +64,7 @@ const upload = async (req, res, next) => {
           size: file.size,
           diskPath: file.filename,
           category: category.toUpperCase(),
+          classStatus: "CLASSIFIED",
           semesterId: subject.semesterId,
           departmentId: subject.departmentId,
           collegeId: subject.department.collegeId,
@@ -96,21 +91,208 @@ const upload = async (req, res, next) => {
 };
 
 /**
+ * POST /api/resources/auto-upload
+ * Bulk upload files for AI auto-sorting.
+ * Files are saved immediately with PENDING status and enqueued for background classification.
+ */
+const autoUpload = async (req, res, next) => {
+  try {
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: "No files provided" });
+    }
+
+    const resources = [];
+    for (const file of files) {
+      const resource = await prisma.resource.create({
+        data: {
+          name: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          diskPath: file.filename,
+          category: null,
+          classStatus: "PENDING",
+          aiConfidence: null,
+          semesterId: null,
+          departmentId: null,
+          collegeId: null,
+          uploadedById: req.user.id,
+        },
+      });
+      resources.push(resource);
+
+      // Add to background classification queue
+      await addToQueue(resource.id);
+    }
+
+    res.status(201).json({
+      message: `${resources.length} file(s) uploaded and queued for AI classification`,
+      resources,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/resources/pending-review
+ * Fetch files that need manual review (PENDING or NEEDS_REVIEW).
+ */
+const listPendingReview = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+
+    const where = {};
+
+    // Admins see all, others see only their own
+    if (req.user.role !== "ADMIN") {
+      where.uploadedById = req.user.id;
+    }
+
+    if (status === "PENDING") {
+      where.classStatus = "PENDING";
+    } else if (status === "NEEDS_REVIEW") {
+      where.classStatus = "NEEDS_REVIEW";
+    } else {
+      where.classStatus = { in: ["PENDING", "NEEDS_REVIEW"] };
+    }
+
+    const resources = await prisma.resource.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        uploadedBy: { select: { id: true, name: true } },
+        subjects: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    // Get queue stats
+    let queueStats = { waiting: 0, active: 0, completed: 0, failed: 0 };
+    try {
+      queueStats = await getQueueStats();
+    } catch (e) {
+      // Redis might not be available
+    }
+
+    res.json({ resources, queueStats });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/resources/auto-history
+ * Fetch files that were automatically classified by AI or manually classified via Auto-Sort.
+ */
+const listAutoSortHistory = async (req, res, next) => {
+  try {
+    const where = {
+      classStatus: "CLASSIFIED",
+      aiConfidence: { not: null },
+    };
+
+    if (req.user.role !== "ADMIN") {
+      where.uploadedById = req.user.id;
+    }
+
+    const resources = await prisma.resource.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        uploadedBy: { select: { id: true, name: true } },
+        subjects: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    res.json({ resources });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/resources/:id/classify
+ * Manually classify a file that the AI couldn't handle.
+ */
+const manualClassify = async (req, res, next) => {
+  try {
+    let { subjectIds, category } = req.body;
+
+    if (!subjectIds || !category) {
+      return res.status(400).json({ error: "subjectIds and category are required" });
+    }
+
+    if (typeof subjectIds === 'string') {
+      try { subjectIds = JSON.parse(subjectIds); }
+      catch (e) { subjectIds = subjectIds.split(',').map(s => s.trim()); }
+    }
+
+    const validCategories = ["NOTES", "BOOK", "PYQ", "ASSIGNMENT", "LAB", "MISC"];
+    if (!validCategories.includes(category.toUpperCase())) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+
+    const resource = await prisma.resource.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!resource) {
+      return res.status(404).json({ error: "Resource not found" });
+    }
+
+    if (req.user.role !== "ADMIN" && resource.uploadedById !== req.user.id) {
+      return res.status(403).json({ error: "You can only classify your own uploads" });
+    }
+
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectIds[0] },
+      include: { department: true },
+    });
+
+    if (!subject) {
+      return res.status(404).json({ error: "Subject not found" });
+    }
+
+    const updated = await prisma.resource.update({
+      where: { id: req.params.id },
+      data: {
+        classStatus: "CLASSIFIED",
+        category: category.toUpperCase(),
+        semesterId: subject.semesterId,
+        departmentId: subject.departmentId,
+        collegeId: subject.department.collegeId,
+        subjects: {
+          set: subjectIds.map(id => ({ id })),
+        },
+      },
+      include: {
+        subjects: { select: { name: true, code: true } },
+      },
+    });
+
+    res.json({ message: "File classified successfully", resource: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * GET /api/resources
  * List resources with filtering & sorting.
- * Query params: subjectId, category, sort (name|createdAt|size), order (asc|desc)
  */
 const list = async (req, res, next) => {
   try {
     const { subjectId, category, sort = "createdAt", order = "desc" } = req.query;
 
-    const where = {};
+    const where = {
+      classStatus: "CLASSIFIED",
+    };
     if (subjectId) {
       where.subjects = { some: { id: subjectId } };
     }
     if (category) where.category = category.toUpperCase();
 
-    // Validate sort field
     const validSorts = ["name", "createdAt", "size"];
     const sortField = validSorts.includes(sort) ? sort : "createdAt";
     const sortOrder = order === "asc" ? "asc" : "desc";
@@ -135,7 +317,6 @@ const list = async (req, res, next) => {
 
 /**
  * GET /api/resources/search?q=...
- * Basic ILIKE search on file name.
  */
 const search = async (req, res, next) => {
   try {
@@ -147,6 +328,7 @@ const search = async (req, res, next) => {
     const resources = await prisma.resource.findMany({
       where: {
         name: { contains: q, mode: "insensitive" },
+        classStatus: "CLASSIFIED",
       },
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -167,7 +349,6 @@ const search = async (req, res, next) => {
 
 /**
  * GET /api/resources/:id
- * Get a single resource's metadata
  */
 const getOne = async (req, res, next) => {
   try {
@@ -194,7 +375,6 @@ const getOne = async (req, res, next) => {
 
 /**
  * GET /api/resources/:id/download
- * Download file binary.
  */
 const download = async (req, res, next) => {
   try {
@@ -220,7 +400,6 @@ const download = async (req, res, next) => {
 
 /**
  * PATCH /api/resources/:id/rename
- * Rename a file. Senior can rename own, Admin can rename any.
  */
 const rename = async (req, res, next) => {
   try {
@@ -237,7 +416,6 @@ const rename = async (req, res, next) => {
       return res.status(404).json({ error: "Resource not found" });
     }
 
-    // Permission check: Senior can only rename own uploads
     if (req.user.role === "SENIOR" && resource.uploadedById !== req.user.id) {
       return res.status(403).json({ error: "You can only rename your own uploads" });
     }
@@ -255,7 +433,6 @@ const rename = async (req, res, next) => {
 
 /**
  * PATCH /api/resources/:id/move
- * Move a file to a different subject/category.
  */
 const move = async (req, res, next) => {
   try {
@@ -274,7 +451,6 @@ const move = async (req, res, next) => {
       return res.status(404).json({ error: "Resource not found" });
     }
 
-    // Permission check
     if (req.user.role === "SENIOR" && resource.uploadedById !== req.user.id) {
       return res.status(403).json({ error: "You can only move your own uploads" });
     }
@@ -290,7 +466,6 @@ const move = async (req, res, next) => {
         try { subjectIds = JSON.parse(subjectIds); }
         catch (e) { subjectIds = subjectIds.split(',').map(s => s.trim()); }
       }
-      // Lookup the target subject to get its parent references
       const subject = await prisma.subject.findUnique({
         where: { id: subjectIds[0] },
         include: { department: true },
@@ -325,8 +500,6 @@ const move = async (req, res, next) => {
 
 /**
  * DELETE /api/resources/:id
- * Hard delete: remove from DB + disk.
- * Senior can delete own, Admin can delete any.
  */
 const remove = async (req, res, next) => {
   try {
@@ -338,20 +511,17 @@ const remove = async (req, res, next) => {
       return res.status(404).json({ error: "Resource not found" });
     }
 
-    // Permission check
     if (req.user.role === "SENIOR" && resource.uploadedById !== req.user.id) {
       return res
         .status(403)
         .json({ error: "You can only delete your own uploads" });
     }
 
-    // Delete from disk
     const filePath = path.join(__dirname, "..", "uploads", resource.diskPath);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
 
-    // Delete from DB
     await prisma.resource.delete({ where: { id: req.params.id } });
 
     res.json({ message: "File deleted permanently" });
@@ -360,4 +530,4 @@ const remove = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, list, search, getOne, download, rename, move, remove };
+module.exports = { upload, autoUpload, list, search, getOne, download, rename, move, remove, listPendingReview, manualClassify, listAutoSortHistory };

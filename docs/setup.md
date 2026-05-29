@@ -6,6 +6,8 @@ Follow these instructions to run the Academic Resource Hub locally on your machi
 
 - **Node.js** (v18 or higher recommended)
 - **PostgreSQL** (running locally or via a cloud provider)
+- **Docker** (Highly recommended for running Redis for the Auto-Sort worker)
+- **API Keys**: Google Gemini API key and Groq API key for AI classification
 
 ## 1. Clone & Install Dependencies
 
@@ -45,12 +47,25 @@ DATABASE_URL="postgresql://user:password@localhost:5432/academic_hub?schema=publ
 
 # JWT Secret for signing tokens
 JWT_SECRET="your_super_secret_jwt_key_here"
+
+# Redis Connection (Required for Auto-Sort Background Worker)
+REDIS_URL="redis://localhost:6379"
+
+# AI Classification API Keys
+GEMINI_API_KEY="your_gemini_key_here"
+GROQ_API_KEY="your_groq_key_here"
+AI_CONFIDENCE_THRESHOLD=80
 ```
 
 ### Frontend (`client/.env` - Optional)
 Vite automatically proxies `/api` requests to `http://localhost:5001` (configured in `vite.config.js`), so you usually don't need a `.env` file for local development.
 
-## 3. Database Setup
+## 3. Database & Infrastructure Setup
+
+If you want to use the AI Auto-Sort feature, you need a running Redis instance. You can start one using the provided Docker Compose file from the root directory:
+```bash
+docker compose up -d
+```
 
 From the `server` directory, run Prisma migrations to apply the schema to your PostgreSQL database:
 

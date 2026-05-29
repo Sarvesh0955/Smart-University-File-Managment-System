@@ -18,6 +18,10 @@ The Academic Resource Hub (formerly known as "AI Document Manager") is a full-st
   - Automatic file categorization based on extensions (PDF, Images, Documents, Code, etc.).
   - Grid and List views with sorting capabilities (Size, Name, Date).
   - Search functionality to easily find files across the entire platform.
+- **AI Auto-Sort**: 
+  - Bulk upload academic materials and let AI automatically organize them.
+  - Powered by Google Gemini (with Grok fallback) to classify files into correct subjects and categories.
+  - Handles multi-subject overlap, extracts text from PDFs/Office docs, and falls back to image-based context for scanned documents.
 - **Admin Dashboard**: Manage the structure of the institution, including adding/removing Colleges, Departments, Semesters, and Subjects.
 
 ## Documentation Index

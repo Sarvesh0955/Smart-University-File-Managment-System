@@ -54,9 +54,19 @@ These endpoints handle the actual uploaded files.
   - Fetch resources for a specific subject. Supports query parameters for sorting (`sort`, `order`) and filtering (`category`).
 - **GET `/search?q=...`** (Protected)
   - Search resources by name globally.
+- **POST `/auto-upload`** (Senior / Admin)
+  - Bulk upload files for AI auto-sorting.
+- **GET `/pending-review`** (Protected)
+  - Fetch files that are processing or require manual review (low AI confidence).
+- **GET `/auto-history`** (Protected)
+  - Fetch a history of successfully auto-classified files.
 - **GET `/:id/download`** (Protected)
   - Streams the file for download.
 - **PATCH `/:id/rename`** (Senior / Admin)
   - Renames a resource. Seniors can only rename their own files.
+- **PATCH `/:id/classify`** (Senior / Admin)
+  - Manually assign multiple subjects and a category to a pending file.
+- **PATCH `/:id/move`** (Senior / Admin)
+  - Re-classify or change the location of an already classified file.
 - **DELETE `/:id`** (Senior / Admin)
   - Deletes a resource and removes it from the local disk. Seniors can only delete their own files.
