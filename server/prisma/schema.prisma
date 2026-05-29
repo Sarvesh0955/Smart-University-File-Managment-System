@@ -122,6 +122,7 @@ model Resource {
   mimeType     String
   size         Int
   diskPath     String
+  fileHash     String?      @unique
   category     Category?
   classStatus  ClassStatus  @default(CLASSIFIED)
   aiConfidence Int?

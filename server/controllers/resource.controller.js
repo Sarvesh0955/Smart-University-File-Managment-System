@@ -1,9 +1,23 @@
 const { PrismaClient } = require("@prisma/client");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { addToQueue, getQueueStats } = require("../services/queue.service");
 
 const prisma = new PrismaClient();
+
+/**
+ * Helper: Calculate SHA-256 hash of a file on disk
+ */
+function calculateFileHash(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", (err) => reject(err));
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
 
 /**
  * POST /api/resources/upload
@@ -56,13 +70,31 @@ const upload = async (req, res, next) => {
 
     // Create resource records for each uploaded file
     const resources = [];
+    let duplicates = 0;
+    
     for (const file of files) {
+      const filePath = path.join(__dirname, "..", "uploads", file.filename);
+      const fileHash = await calculateFileHash(filePath);
+
+      // Check for exact duplicate in DB
+      const existing = await prisma.resource.findUnique({
+        where: { fileHash },
+      });
+
+      if (existing) {
+        // Delete the redundant uploaded file from disk
+        fs.unlinkSync(filePath);
+        duplicates++;
+        continue;
+      }
+
       const resource = await prisma.resource.create({
         data: {
           name: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
           diskPath: file.filename,
+          fileHash,
           category: category.toUpperCase(),
           classStatus: "CLASSIFIED",
           semesterId: subject.semesterId,
@@ -81,8 +113,13 @@ const upload = async (req, res, next) => {
       resources.push(resource);
     }
 
+    let message = `${resources.length} file(s) uploaded successfully.`;
+    if (duplicates > 0) {
+      message += ` ${duplicates} duplicate(s) were skipped.`;
+    }
+
     res.status(201).json({
-      message: `${resources.length} file(s) uploaded successfully`,
+      message,
       resources,
     });
   } catch (error) {
@@ -104,13 +141,31 @@ const autoUpload = async (req, res, next) => {
     }
 
     const resources = [];
+    let duplicates = 0;
+
     for (const file of files) {
+      const filePath = path.join(__dirname, "..", "uploads", file.filename);
+      const fileHash = await calculateFileHash(filePath);
+
+      // Check for exact duplicate in DB
+      const existing = await prisma.resource.findUnique({
+        where: { fileHash },
+      });
+
+      if (existing) {
+        // Delete the redundant uploaded file from disk
+        fs.unlinkSync(filePath);
+        duplicates++;
+        continue;
+      }
+
       const resource = await prisma.resource.create({
         data: {
           name: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
           diskPath: file.filename,
+          fileHash,
           category: null,
           classStatus: "PENDING",
           aiConfidence: null,
@@ -126,8 +181,13 @@ const autoUpload = async (req, res, next) => {
       await addToQueue(resource.id);
     }
 
+    let message = `${resources.length} file(s) uploaded and queued for AI classification.`;
+    if (duplicates > 0) {
+      message += ` ${duplicates} duplicate(s) were skipped.`;
+    }
+
     res.status(201).json({
-      message: `${resources.length} file(s) uploaded and queued for AI classification`,
+      message,
       resources,
     });
   } catch (error) {
