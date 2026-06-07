@@ -8,8 +8,8 @@ async function main() {
   console.log("🌱 Seeding database...\n");
 
   // --- Seed Admin User ---
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@academichub.com";
-  const adminPassword = process.env.ADMIN_PASSWORD || "Admin@123";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@gmail.com";
+  const adminPassword = process.env.ADMIN_PASSWORD || "123456";
   const adminName = process.env.ADMIN_NAME || "System Admin";
 
   const existingAdmin = await prisma.user.findUnique({
@@ -34,12 +34,12 @@ async function main() {
 
   // --- Seed a sample College + Department + Semester + Subject ---
   let college = await prisma.college.findUnique({
-    where: { code: "UOT" },
+    where: { code: "IIITA" },
   });
 
   if (!college) {
     college = await prisma.college.create({
-      data: { name: "University of Technology", code: "UOT" },
+      data: { name: "Indian Institute of Information Technology Allahabad", code: "IIITA" },
     });
     console.log(`✅ College created: ${college.name}`);
   } else {
@@ -47,14 +47,14 @@ async function main() {
   }
 
   let dept = await prisma.department.findUnique({
-    where: { code_collegeId: { code: "CSE", collegeId: college.id } },
+    where: { code_collegeId: { code: "IT", collegeId: college.id } },
   });
 
   if (!dept) {
     dept = await prisma.department.create({
       data: {
-        name: "Computer Science Engineering",
-        code: "CSE",
+        name: "Information Technology",
+        code: "IT",
         collegeId: college.id,
       },
     });
@@ -65,13 +65,13 @@ async function main() {
 
   let semester = await prisma.semester.findUnique({
     where: {
-      number_departmentId: { number: 5, departmentId: dept.id },
+      number_departmentId: { number: 6, departmentId: dept.id },
     },
   });
 
   if (!semester) {
     semester = await prisma.semester.create({
-      data: { number: 5, departmentId: dept.id },
+      data: { number: 6, departmentId: dept.id },
     });
     console.log(`✅ Semester created: Semester ${semester.number}`);
   } else {
@@ -79,9 +79,11 @@ async function main() {
   }
 
   const subjectsData = [
-    { name: "Operating Systems", code: "CS501" },
-    { name: "Data Structures", code: "CS502" },
-    { name: "Database Management", code: "CS503" },
+    { name: "Data Analytics", code: "DA" },
+    { name: "Big Data Analytics", code: "BDA" },
+    { name: "Biology", code: "BIO" },
+    { name: "Data Visualization", code: "DV" },
+    { name: "Japanese", code: "JAP" },
   ];
 
   for (const sub of subjectsData) {
@@ -105,6 +107,56 @@ async function main() {
     } else {
       console.log(`✅ Subject already exists: ${sub.name}`);
     }
+  }
+
+  // --- Seed Student (Junior) User ---
+  const studentEmail = process.env.STUDENT_EMAIL || "student@gmail.com";
+  const studentPassword = process.env.STUDENT_PASSWORD || "123456";
+
+  const existingStudent = await prisma.user.findUnique({
+    where: { email: studentEmail },
+  });
+
+  if (!existingStudent) {
+    const hashedPassword = await bcrypt.hash(studentPassword, 12);
+    await prisma.user.create({
+      data: {
+        name: "Temp Junior",
+        email: studentEmail,
+        password: hashedPassword,
+        role: "STUDENT",
+        status: "ACTIVE",
+        collegeId: college.id,
+      },
+    });
+    console.log(`✅ Student (Junior) created: ${studentEmail}`);
+  } else {
+    console.log(`✅ Student (Junior) already exists`);
+  }
+
+  // --- Seed Senior User ---
+  const seniorEmail = process.env.SENIOR_EMAIL || "senior@gmail.com";
+  const seniorPassword = process.env.SENIOR_PASSWORD || "123456";
+
+  const existingSenior = await prisma.user.findUnique({
+    where: { email: seniorEmail },
+  });
+
+  if (!existingSenior) {
+    const hashedPassword = await bcrypt.hash(seniorPassword, 12);
+    await prisma.user.create({
+      data: {
+        name: "Temp Senior",
+        email: seniorEmail,
+        password: hashedPassword,
+        role: "SENIOR",
+        status: "ACTIVE",
+        collegeId: college.id,
+      },
+    });
+    console.log(`✅ Senior created: ${seniorEmail}`);
+  } else {
+    console.log(`✅ Senior already exists`);
   }
 
   console.log("\n🎉 Seeding complete!");

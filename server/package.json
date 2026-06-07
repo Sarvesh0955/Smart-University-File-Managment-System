@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "clear": "node prisma/clear.js"
   },
   "dependencies": {
     "@google/genai": "^2.7.0",
