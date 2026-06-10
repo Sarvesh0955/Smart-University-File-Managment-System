@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import api from "../utils/api";
 import Header from "../components/Layout/Header";
+import FilePreview from "../components/FilePreview";
 
 const SUGGESTIONS = [
   { icon: "school", text: "Summarize my notes on Data Structures" },
@@ -21,6 +22,7 @@ export default function AiChat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -288,9 +290,23 @@ export default function AiChat() {
                             Sources:
                           </span>
                           {msg.sources.map((src, j) => (
-                            <span key={j} className="aichat-source-chip">
+                            <button 
+                              key={j} 
+                              className="aichat-source-chip"
+                              style={{ cursor: src.diskPath ? "pointer" : "default", border: "none", background: "rgba(255, 255, 255, 0.1)", borderRadius: "12px", padding: "4px 10px", fontSize: "12px", color: "var(--color-on-surface)" }}
+                              onClick={() => {
+                                if (src.diskPath) {
+                                  setPreviewFile({
+                                    id: src.resourceId,
+                                    name: src.resourceName,
+                                    mimeType: src.mimeType,
+                                    diskPath: src.diskPath,
+                                  });
+                                }
+                              }}
+                            >
                               {src.resourceName}
-                            </span>
+                            </button>
                           ))}
                         </div>
                       )}
@@ -346,6 +362,14 @@ export default function AiChat() {
           </div>
         </div>
       </div>
+      
+      {/* File Preview Modal */}
+      {previewFile && (
+        <FilePreview
+          resource={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
     </>
   );
 }

@@ -169,6 +169,8 @@ async function generateAnswer(query, searchResults, chatHistory = []) {
       resourceId: result.resourceId,
       resourceName: result.resourceName,
       similarity: result.topSimilarity,
+      diskPath: result.diskPath,
+      mimeType: result.mimeType,
     });
   }
 
