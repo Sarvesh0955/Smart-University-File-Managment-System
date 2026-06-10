@@ -9,6 +9,8 @@ const departmentRoutes = require("./routes/department.routes");
 const semesterRoutes = require("./routes/semester.routes");
 const subjectRoutes = require("./routes/subject.routes");
 const resourceRoutes = require("./routes/resource.routes");
+const searchRoutes = require("./routes/search.routes");
+const chatRoutes = require("./routes/chat.routes");
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use("/api/departments", departmentRoutes);
 app.use("/api/semesters", semesterRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/resources", resourceRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -52,6 +56,15 @@ app.listen(PORT, () => {
     console.log("🤖 AI classification worker initialized");
   } catch (err) {
     console.warn("⚠️  Could not start classification worker (Redis may not be running):", err.message);
+  }
+
+  // Start the background embedding worker (RAG pipeline)
+  try {
+    const { startEmbeddingWorker } = require("./services/rag/embeddingQueue");
+    startEmbeddingWorker();
+    console.log("🧠 RAG embedding worker initialized");
+  } catch (err) {
+    console.warn("⚠️  Could not start embedding worker (Redis may not be running):", err.message);
   }
 });
 

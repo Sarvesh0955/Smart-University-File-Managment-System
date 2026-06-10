@@ -37,6 +37,15 @@ export default function Sidebar() {
             Auto-Sort
           </NavLink>
         )}
+        <NavLink
+          to="/ai-chat"
+          className={({ isActive }) =>
+            `sidebar-nav-item ${isActive ? "active" : ""}`
+          }
+        >
+          <span className="material-symbols-outlined">smart_toy</span>
+          AI Chat
+        </NavLink>
         {user?.role === "ADMIN" && (
           <NavLink
             to="/admin"

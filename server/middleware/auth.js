@@ -27,6 +27,8 @@ const auth = async (req, res, next) => {
         role: true,
         status: true,
         collegeId: true,
+        departmentId: true,
+        semesterId: true,
         year: true,
       },
     });
@@ -55,3 +57,4 @@ const auth = async (req, res, next) => {
 };
 
 module.exports = auth;
+module.exports.authenticate = auth;

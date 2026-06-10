@@ -41,6 +41,11 @@ export default function Drive() {
   const [renameModal, setRenameModal] = useState(null);
   const [renameValue, setRenameValue] = useState("");
 
+  
+  // Smart search state
+  const [semanticResults, setSemanticResults] = useState([]);
+  const [semanticLoading, setSemanticLoading] = useState(false);
+
   const contextRef = useRef(null);
 
   const canUpload = user?.role === "SENIOR" || user?.role === "ADMIN";
@@ -55,9 +60,21 @@ export default function Drive() {
     setLoading(true);
     try {
       if (searchQuery) {
-        // Search mode: show files
-        const res = await api.get(`/resources/search?q=${encodeURIComponent(searchQuery)}`);
-        setResources(res.data.resources);
+        // Search mode: fetch both filename matches and semantic matches
+        const filenamePromise = api.get(`/resources/search?q=${encodeURIComponent(searchQuery)}`);
+        
+        // Also kick off semantic search
+        setSemanticLoading(true);
+        const semanticPromise = api.get(`/search/smart?q=${encodeURIComponent(searchQuery)}`)
+          .catch(err => {
+            console.warn("Semantic search failed:", err);
+            return { data: { results: [] } };
+          });
+
+        const [filenameRes, semanticRes] = await Promise.all([filenamePromise, semanticPromise]);
+        setResources(filenameRes.data.resources);
+        setSemanticResults(semanticRes.data.results || []);
+        setSemanticLoading(false);
         setFolders([]);
       } else if (currentLevel === "root") {
         // Root: Show colleges for admin, otherwise departments for user's college
@@ -302,14 +319,14 @@ export default function Drive() {
         )}
 
         {/* Loading */}
-        {loading && (
+        {(loading || semanticLoading) && (
           <div className="flex-center" style={{ padding: 64 }}>
             <div className="spinner" />
           </div>
         )}
 
         {/* Empty State */}
-        {!loading && folders.length === 0 && resources.length === 0 && (
+        {!(loading || semanticLoading) && folders.length === 0 && resources.length === 0 && semanticResults.length === 0 && (
           <div className="empty-state">
             <span className="material-symbols-outlined empty-state-icon">
               {searchQuery ? "search_off" : isViewingFiles ? "draft" : "folder_open"}
@@ -323,7 +340,7 @@ export default function Drive() {
             </h3>
             <p className="empty-state-text">
               {searchQuery
-                ? "Try a different search term."
+                ? "Try a different search term or ask the AI assistant."
                 : isViewingFiles
                 ? (canUpload ? "Upload some files to get started." : "Check back later for new resources.")
                 : "Contact your administrator if this seems incorrect."}
@@ -331,9 +348,19 @@ export default function Drive() {
           </div>
         )}
 
-        {/* Grid View */}
-        {!loading && viewMode === "grid" && (
-          <div className="file-grid">
+        {/* Grid View (Filename Matches) */}
+        {!(loading || semanticLoading) && viewMode === "grid" && (
+          <div className="file-grid-container">
+            {searchQuery && (resources.length > 0 || folders.length > 0) && (
+              <div className="search-section-header">
+                <span className="material-symbols-outlined">match_case</span>
+                <h3>Filename Matches</h3>
+                <span className="search-section-badge">{resources.length + folders.length} found</span>
+              </div>
+            )}
+            
+            {(resources.length > 0 || folders.length > 0) && (
+              <div className="file-grid" style={{ marginBottom: searchQuery ? "var(--space-2xl)" : 0 }}>
             {/* Folders */}
             {!isViewingFiles && folders.map((f) => (
               <div
@@ -394,12 +421,82 @@ export default function Drive() {
                 </div>
               );
             })}
+              </div>
+            )}
+            
+            {/* Semantic Matches (Grid View) */}
+            {searchQuery && semanticResults.length > 0 && (
+              <div className="search-results-section">
+                <div className="search-section-header">
+                  <span className="material-symbols-outlined">psychology</span>
+                  <h3>Related by Content</h3>
+                  <span className="search-section-badge">AI Matches</span>
+                </div>
+                
+                <div className="file-grid">
+                  {semanticResults.map((result) => {
+                    // Extract minimal resource info for the file card
+                    const r = {
+                      id: result.resourceId,
+                      name: result.resourceName,
+                      mimeType: result.mimeType,
+                      size: result.size,
+                      category: result.category,
+                      createdAt: result.createdAt,
+                      diskPath: result.diskPath
+                    };
+                    const iconType = getFileIconType(r.mimeType);
+                    
+                    return (
+                      <div
+                        key={`semantic-${r.id}`}
+                        className="file-card"
+                        onDoubleClick={() => setPreviewResource(r)}
+                        onContextMenu={(e) => handleContextMenu(e, r)}
+                      >
+                        <div className="file-card-header">
+                          <div className={`file-card-icon ${iconType}`}>
+                            <span className="material-symbols-outlined">
+                              {getFileIcon(r.mimeType)}
+                            </span>
+                          </div>
+                          
+                          <div className="search-relevance-bar" title={`Relevance: ${Math.round(result.topSimilarity * 100)}%`}>
+                            <div 
+                              className="search-relevance-fill" 
+                              style={{ width: `${Math.max(10, result.topSimilarity * 100)}%` }} 
+                            />
+                          </div>
+                        </div>
+                        <div className="file-card-footer">
+                          <div className="file-card-name">{r.name}</div>
+                          <div className="file-card-meta">
+                            <span>{getCategoryLabel(r.category)}</span>
+                            <span>{Math.round(result.topSimilarity * 100)}% Match</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* List View */}
-        {!loading && viewMode === "list" && (
-          <div className="file-list">
+        {!(loading || semanticLoading) && viewMode === "list" && (
+          <div className="file-list-container">
+            {searchQuery && (resources.length > 0 || folders.length > 0) && (
+              <div className="search-section-header" style={{ marginBottom: "var(--space-md)" }}>
+                <span className="material-symbols-outlined">match_case</span>
+                <h3>Filename Matches</h3>
+                <span className="search-section-badge">{resources.length + folders.length} found</span>
+              </div>
+            )}
+            
+            {(resources.length > 0 || folders.length > 0) && (
+              <div className="file-list" style={{ marginBottom: searchQuery ? "var(--space-2xl)" : 0 }}>
             <div className="file-list-header">
               <span onClick={() => isViewingFiles && toggleSort("name")}>
                 Name {isViewingFiles && sort === "name" && (order === "asc" ? "↑" : "↓")}
@@ -472,6 +569,83 @@ export default function Drive() {
                 </div>
               );
             })}
+              </div>
+            )}
+            
+            {/* Semantic Matches (List View) */}
+            {searchQuery && semanticResults.length > 0 && (
+              <div className="search-results-section">
+                <div className="search-section-header" style={{ marginBottom: "var(--space-md)" }}>
+                  <span className="material-symbols-outlined">psychology</span>
+                  <h3>Related by Content</h3>
+                  <span className="search-section-badge">AI Matches</span>
+                </div>
+                
+                <div className="file-list">
+                  <div className="file-list-header">
+                    <span>Name</span>
+                    <span>Category</span>
+                    <span>Size</span>
+                    <span>Relevance</span>
+                    <span>Actions</span>
+                  </div>
+                  
+                  {semanticResults.map((result) => {
+                    const r = {
+                      id: result.resourceId,
+                      name: result.resourceName,
+                      mimeType: result.mimeType,
+                      size: result.size,
+                      category: result.category,
+                      createdAt: result.createdAt,
+                      diskPath: result.diskPath
+                    };
+                    const iconType = getFileIconType(r.mimeType);
+                    
+                    return (
+                      <div
+                        key={`semantic-list-${r.id}`}
+                        className="file-row"
+                        onDoubleClick={() => setPreviewResource(r)}
+                        onContextMenu={(e) => handleContextMenu(e, r)}
+                      >
+                        <div className="file-row-name">
+                          <div className={`file-row-icon ${iconType}`}>
+                            <span className="material-symbols-outlined">
+                              {getFileIcon(r.mimeType)}
+                            </span>
+                          </div>
+                          <span>{r.name}</span>
+                        </div>
+                        <span className="file-row-meta">
+                          {getCategoryLabel(r.category)}
+                        </span>
+                        <span className="file-row-meta">{formatBytes(r.size)}</span>
+                        <span className="file-row-meta" style={{ display: 'flex', alignItems: 'center' }}>
+                          <div className="search-relevance-bar" title={`Relevance: ${Math.round(result.topSimilarity * 100)}%`} style={{ marginLeft: 0, marginTop: 0 }}>
+                            <div 
+                              className="search-relevance-fill" 
+                              style={{ width: `${Math.max(10, result.topSimilarity * 100)}%` }} 
+                            />
+                          </div>
+                        </span>
+                        <div className="file-row-actions">
+                          <button
+                            className="btn-icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(r);
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>download</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

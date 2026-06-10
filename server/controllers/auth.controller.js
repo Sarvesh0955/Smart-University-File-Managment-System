@@ -108,6 +108,8 @@ const login = async (req, res, next) => {
         role: user.role,
         status: user.status,
         collegeId: user.collegeId,
+        departmentId: user.departmentId,
+        semesterId: user.semesterId,
         year: user.year,
       },
       token,
@@ -215,12 +217,14 @@ const rejectUser = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
   try {
-    const { collegeId } = req.body;
+    const { collegeId, departmentId, semesterId } = req.body;
     
     const updated = await prisma.user.update({
       where: { id: req.user.id },
       data: {
-        ...(collegeId !== undefined && { collegeId })
+        ...(collegeId !== undefined && { collegeId }),
+        ...(departmentId !== undefined && { departmentId }),
+        ...(semesterId !== undefined && { semesterId }),
       },
       select: {
         id: true,
@@ -229,6 +233,8 @@ const updateProfile = async (req, res, next) => {
         role: true,
         status: true,
         collegeId: true,
+        departmentId: true,
+        semesterId: true,
         year: true,
       },
     });

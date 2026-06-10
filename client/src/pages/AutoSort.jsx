@@ -43,8 +43,8 @@ export default function AutoSort() {
   };
 
   // Fetch pending/review resources
-  const fetchPendingData = async () => {
-    setLoading(true);
+  const fetchPendingData = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const [pendingRes, reviewRes, historyRes] = await Promise.all([
         api.get("/resources/pending-review?status=PENDING"),
@@ -58,7 +58,7 @@ export default function AutoSort() {
     } catch (err) {
       console.error("Failed to fetch pending data:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -93,14 +93,14 @@ export default function AutoSort() {
 
   useEffect(() => {
     if (activeTab === "processing" || activeTab === "review" || activeTab === "history") {
-      fetchPendingData();
+      fetchPendingData(false);
     }
   }, [activeTab]);
 
   // Auto-refresh processing tab every 5 seconds
   useEffect(() => {
     if (activeTab !== "processing" && activeTab !== "review" && activeTab !== "history") return;
-    const interval = setInterval(fetchPendingData, 5000);
+    const interval = setInterval(() => fetchPendingData(true), 5000);
     return () => clearInterval(interval);
   }, [activeTab]);
 

@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const { addToQueue, getQueueStats } = require("../services/queue.service");
+const { addToEmbeddingQueue } = require("../services/rag/embeddingQueue");
 
 const prisma = new PrismaClient();
 
@@ -111,6 +112,13 @@ const upload = async (req, res, next) => {
         },
       });
       resources.push(resource);
+
+      // Enqueue for RAG embedding (background)
+      try {
+        await addToEmbeddingQueue(resource.id);
+      } catch (embErr) {
+        console.warn(`[Upload] Could not enqueue embedding for ${resource.id}:`, embErr.message);
+      }
     }
 
     let message = `${resources.length} file(s) uploaded successfully.`;
@@ -179,6 +187,13 @@ const autoUpload = async (req, res, next) => {
 
       // Add to background classification queue
       await addToQueue(resource.id);
+
+      // Enqueue for RAG embedding (background)
+      try {
+        await addToEmbeddingQueue(resource.id);
+      } catch (embErr) {
+        console.warn(`[AutoUpload] Could not enqueue embedding for ${resource.id}:`, embErr.message);
+      }
     }
 
     let message = `${resources.length} file(s) uploaded and queued for AI classification.`;

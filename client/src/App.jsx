@@ -8,6 +8,7 @@ import Drive from "./pages/Drive";
 import AdminPanel from "./pages/AdminPanel";
 import Profile from "./pages/Profile";
 import AutoSort from "./pages/AutoSort";
+import AiChat from "./pages/AiChat";
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { user, loading } = useAuth();
@@ -81,6 +82,7 @@ function AppRoutes() {
       >
         <Route path="/drive" element={<Drive />} />
         <Route path="/auto-sort" element={<AutoSort />} />
+        <Route path="/ai-chat" element={<AiChat />} />
         <Route path="/profile" element={<Profile />} />
         <Route
           path="/admin"

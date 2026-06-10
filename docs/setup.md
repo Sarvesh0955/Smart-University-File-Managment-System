@@ -5,7 +5,7 @@ Follow these instructions to run the Academic Resource Hub locally on your machi
 ## Prerequisites
 
 - **Node.js** (v18 or higher recommended)
-- **PostgreSQL** (running locally or via a cloud provider)
+- **PostgreSQL** (with `pgvector` extension installed. Running locally or via a cloud provider like Supabase/Neon)
 - **Docker** (Highly recommended for running Redis for the Auto-Sort worker)
 - **API Keys**: Google Gemini API key and Groq API key for AI classification
 
@@ -78,6 +78,13 @@ npx prisma db push
 To populate the database with a default Admin account and some initial structural data (Colleges, Departments, etc.), run:
 ```bash
 npm run seed
+```
+
+**(Optional) Re-Embed Existing Resources**:
+If you are upgrading an existing database and need to generate vector embeddings for already classified resources, run:
+```bash
+cd server
+node scripts/reEmbed.js
 ```
 
 ## 4. Run the Development Servers

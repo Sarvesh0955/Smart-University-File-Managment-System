@@ -35,7 +35,7 @@ router.post(
   "/upload",
   auth,
   requireRole("SENIOR", "ADMIN"),
-  uploadMiddleware.array("files", 10),
+  uploadMiddleware.array("files", 50),
   upload
 );
 
@@ -44,7 +44,7 @@ router.post(
   "/auto-upload",
   auth,
   requireRole("SENIOR", "ADMIN"),
-  uploadMiddleware.array("files", 20),
+  uploadMiddleware.array("files", 50),
   autoUpload
 );
 
