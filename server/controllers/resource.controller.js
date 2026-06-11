@@ -4,20 +4,18 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { addToQueue, getQueueStats } = require("../services/queue.service");
 const { addToEmbeddingQueue } = require("../services/rag/embeddingQueue");
+const { uploadToSupabase, getSupabaseDownloadUrl, deleteFromSupabase } = require("../services/supabase.service");
+const { v4: uuidv4 } = require("uuid");
 
 const prisma = new PrismaClient();
 
 /**
- * Helper: Calculate SHA-256 hash of a file on disk
+ * Helper: Calculate SHA-256 hash of a file buffer
  */
-function calculateFileHash(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256");
-    const stream = fs.createReadStream(filePath);
-    stream.on("error", (err) => reject(err));
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-  });
+function calculateFileHash(fileBuffer) {
+  const hash = crypto.createHash("sha256");
+  hash.update(fileBuffer);
+  return hash.digest("hex");
 }
 
 /**
@@ -74,8 +72,7 @@ const upload = async (req, res, next) => {
     let duplicates = 0;
     
     for (const file of files) {
-      const filePath = path.join(__dirname, "..", "uploads", file.filename);
-      const fileHash = await calculateFileHash(filePath);
+      const fileHash = calculateFileHash(file.buffer);
 
       // Check for exact duplicate in DB
       const existing = await prisma.resource.findUnique({
@@ -83,18 +80,19 @@ const upload = async (req, res, next) => {
       });
 
       if (existing) {
-        // Delete the redundant uploaded file from disk
-        fs.unlinkSync(filePath);
         duplicates++;
         continue;
       }
+
+      const fileName = `${uuidv4()}${path.extname(file.originalname)}`;
+      await uploadToSupabase(fileName, file.buffer, file.mimetype);
 
       const resource = await prisma.resource.create({
         data: {
           name: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
-          diskPath: file.filename,
+          diskPath: fileName,
           fileHash,
           category: category.toUpperCase(),
           classStatus: "CLASSIFIED",
@@ -152,8 +150,7 @@ const autoUpload = async (req, res, next) => {
     let duplicates = 0;
 
     for (const file of files) {
-      const filePath = path.join(__dirname, "..", "uploads", file.filename);
-      const fileHash = await calculateFileHash(filePath);
+      const fileHash = calculateFileHash(file.buffer);
 
       // Check for exact duplicate in DB
       const existing = await prisma.resource.findUnique({
@@ -161,18 +158,19 @@ const autoUpload = async (req, res, next) => {
       });
 
       if (existing) {
-        // Delete the redundant uploaded file from disk
-        fs.unlinkSync(filePath);
         duplicates++;
         continue;
       }
+
+      const fileName = `${uuidv4()}${path.extname(file.originalname)}`;
+      await uploadToSupabase(fileName, file.buffer, file.mimetype);
 
       const resource = await prisma.resource.create({
         data: {
           name: file.originalname,
           mimeType: file.mimetype,
           size: file.size,
-          diskPath: file.filename,
+          diskPath: fileName,
           fileHash,
           category: null,
           classStatus: "PENDING",
@@ -461,13 +459,8 @@ const download = async (req, res, next) => {
       return res.status(404).json({ error: "Resource not found" });
     }
 
-    const filePath = path.join(__dirname, "..", "uploads", resource.diskPath);
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "File not found on disk" });
-    }
-
-    res.download(filePath, resource.name);
+    const signedUrl = await getSupabaseDownloadUrl(resource.diskPath);
+    res.redirect(signedUrl);
   } catch (error) {
     next(error);
   }
@@ -592,10 +585,7 @@ const remove = async (req, res, next) => {
         .json({ error: "You can only delete your own uploads" });
     }
 
-    const filePath = path.join(__dirname, "..", "uploads", resource.diskPath);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    await deleteFromSupabase(resource.diskPath);
 
     await prisma.resource.delete({ where: { id: req.params.id } });
 

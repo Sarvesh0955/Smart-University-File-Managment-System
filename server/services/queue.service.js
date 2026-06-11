@@ -128,8 +128,19 @@ async function processClassificationJob(job) {
   }
 
   // 3. Extract content from the file
-  const filePath = path.join(__dirname, "..", "uploads", resource.diskPath);
-  const extractedContent = await extractContent(filePath, resource.mimeType, resource.name);
+  const fs = require("fs");
+  const os = require("os");
+  const { downloadFromSupabase } = require("./supabase.service");
+  
+  const tmpFilePath = path.join(os.tmpdir(), resource.diskPath);
+  let extractedContent = "";
+  try {
+    const fileBuffer = await downloadFromSupabase(resource.diskPath);
+    fs.writeFileSync(tmpFilePath, fileBuffer);
+    extractedContent = await extractContent(tmpFilePath, resource.mimeType, resource.name);
+  } finally {
+    if (fs.existsSync(tmpFilePath)) fs.unlinkSync(tmpFilePath);
+  }
 
   // 4. Classify using LLM
   const subjectsForLLM = subjects.map(s => ({

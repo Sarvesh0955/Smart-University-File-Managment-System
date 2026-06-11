@@ -105,8 +105,19 @@ async function processEmbeddingJob(job) {
   }
 
   // 3. Extract full text
-  const filePath = path.join(__dirname, "..", "..", "uploads", resource.diskPath);
-  const fullText = await extractFullText(filePath, resource.mimeType, resource.name);
+  const fs = require("fs");
+  const os = require("os");
+  const { downloadFromSupabase } = require("../supabase.service");
+  
+  const tmpFilePath = path.join(os.tmpdir(), resource.diskPath);
+  let fullText = "";
+  try {
+    const fileBuffer = await downloadFromSupabase(resource.diskPath);
+    fs.writeFileSync(tmpFilePath, fileBuffer);
+    fullText = await extractFullText(tmpFilePath, resource.mimeType, resource.name);
+  } finally {
+    if (fs.existsSync(tmpFilePath)) fs.unlinkSync(tmpFilePath);
+  }
 
   if (!fullText || fullText.trim().length < 20) {
     console.warn(`[RAG Worker] No meaningful text extracted from "${resource.name}"`);
